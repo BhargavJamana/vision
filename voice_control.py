@@ -1,79 +1,63 @@
 import speech_recognition as sr
-import pyttsx3
-from drone_utils import takeoff, land, move_forward, stop, get_battery_level
+from drone_utils import send_movement_command, arm_and_takeoff, land, stop
 
-engine = pyttsx3.init()
+# Command mapping
+COMMANDS = {
+    "take off": "takeoff",
+    "land": "land",
+    "forward": "forward",
+    "backward": "backward",
+    "left": "left",
+    "right": "right",
+    "hover": "hover",
+    "stop": "stop",
+    "up": "up",
+    "down": "down"
+}
 
-def speak(text):
-    print(f"[Drone]: {text}")
-    engine.say(text)
-    engine.runAndWait()
+def recognize_voice_command(recognizer, audio):
+    try:
+        command = recognizer.recognize_google(audio).lower()
+        print(f"[VOICE] You said: {command}")
+        for key in COMMANDS:
+            if key in command:
+                return COMMANDS[key]
+        print("[VOICE] Command not recognized.")
+        return None
+    except sr.UnknownValueError:
+        print("[VOICE] Could not understand audio.")
+    except sr.RequestError as e:
+        print(f"[VOICE] Could not request results; {e}")
+    return None
 
-def listen_for_command(prompt=None):
+def voice_control_loop(vehicle, stop_flags):
     recognizer = sr.Recognizer()
     mic = sr.Microphone()
 
+    print("[VOICE CONTROL] Say a command (e.g., take off, land, forward)...")
+
     with mic as source:
-        if prompt:
-            speak(prompt)
-        recognizer.adjust_for_ambient_noise(source, duration=0.8)
-        print("Listening...")
-        audio = recognizer.listen(source)
+        recognizer.adjust_for_ambient_noise(source)
 
-    try:
-        return recognizer.recognize_google(audio).lower()
-    except sr.UnknownValueError:
-        speak("I didn't catch that.")
-        return None
-    except sr.RequestError:
-        speak("Speech service is unavailable.")
-        return None
+    while not stop_flags["voice"]:
+        try:
+            with mic as source:
+                print("[VOICE] Listening...")
+                audio = recognizer.listen(source, timeout=5)
+                command = recognize_voice_command(recognizer, audio)
 
-def run():
-    speak("Voice assistant is active. Say 'drone' to give a command.")
+                if command:
+                    if command == "takeoff":
+                        arm_and_takeoff(3)
+                    elif command == "land":
+                        land()
+                    elif command == "stop":
+                        stop()
+                    else:
+                        send_movement_command(vehicle, command)
+        except sr.WaitTimeoutError:
+            print("[VOICE] Listening timeout. Retrying...")
 
-    while True:
-        wake = listen_for_command()
+    print("[VOICE CONTROL] Deactivated.")
 
-        if wake and ("drone" in wake or "hey drone" in wake):
-            speak("Yes, How can i assist you.")
-            command = listen_for_command("How can i assist?")
 
-            if not command:
-                continue
-
-            print(f"Command: {command}")
-
-            if "take off" in command or "takeoff" in command or "fly" in command:
-                takeoff()
-                speak("Taking off.")
-
-            elif "land" in command:
-                land()
-                speak("Landing now.")
-
-            elif "forward" in command or "ahead" in command:
-                move_forward()
-                speak("Moving forward.")
-
-            elif "stop" in command or "halt" in command:
-                stop()
-                speak("Stopping.")
-            elif "retuen home" in command or "alert" in command:
-                land()
-                speak("returning to home")    
-
-            elif "hello" in command or "hi" in command:
-                speak("Hello! I am your drone assistant.")
-
-            elif "battery" in command:
-                battery = get_battery_level()
-                speak(f"My battery level is {battery} percent.")
-
-            elif "who are you" in command or "about you" in command:
-                speak("I am Chitti, the Robo Speed 1 Terahertz Memory 1 Zettabyte")
-
-            else:
-                speak("Sorry, I don't understand that command.")
-        else:
-            print("[Idle] Waiting for wake word...")
