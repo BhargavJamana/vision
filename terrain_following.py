@@ -1,4 +1,3 @@
-# Terrain following script (placeholder)
 import time
 import RPi.GPIO as GPIO
 from drone_utils import ascend, descend, hover
