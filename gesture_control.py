@@ -1,5 +1,3 @@
-# Gesture control script (placeholder)
-
 import cv2
 import mediapipe as mp
 from drone_utils import send_movement_command
